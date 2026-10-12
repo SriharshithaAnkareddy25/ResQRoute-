@@ -46,15 +46,28 @@ python scripts/01_index_buildings.py --raw C:/data/xbd
 python scripts/02_build_subset.py --events hurricane-michael,hurricane-matthew,santa-rosa-wildfire --per-class 2000
 ```
 
-Then zip `scripts/*.py` together with `outputs/{crop_manifest,split_manifest}.csv` and
-`outputs/class_map*.json`. The zip used for the run is `kaggle/resqroute-code.zip`.
-
 ### Steps 3–4: crops and training (Kaggle)
 
-1. Upload `kaggle/resqroute-code.zip` as a private Kaggle dataset named `resqroute-code`.
-2. Import `kaggle/resqroute_kaggle.ipynb`, then add two inputs to it: the xView2 dataset and `resqroute-code`.
-3. Turn on GPU and Internet, then Run All.
-4. Download `resqroute_results.zip` and unzip it into the repo root. This gives `data/crops/`, `models/` and `outputs/`.
+The notebook is [`kaggle/resqroute_kaggle.ipynb`](kaggle/resqroute_kaggle.ipynb). It was run as a private
+Kaggle job (`harshithaankareddy/resqroute-train`). It needs no internet and has three inputs:
+
+- the xView2 dataset;
+- a private dataset `harshithaankareddy/resqroute-code`, containing `scripts/*.py`, `crop_manifest.csv`,
+  `split_manifest.csv` and `class_map*.json` uploaded as flat files;
+- a private dataset `harshithaankareddy/resqroute-imagenet-weights`, containing the torchvision ImageNet
+  checkpoints, served to torchvision via `TORCH_HOME`.
+
+It uses a GPU when Kaggle attaches one and otherwise trains on CPU. The Kaggle job was created and run from the
+laptop with the Kaggle CLI. A `kernel-metadata.json` (not in the repo) lists the three input datasets:
+
+```powershell
+kaggle datasets create -p <folder with the flat files + dataset-metadata.json>
+kaggle kernels push -p <folder with the notebook + kernel-metadata.json>
+kaggle kernels output harshithaankareddy/resqroute-train -p kaggle_out
+```
+
+Clicking through the Kaggle UI also works: import the notebook, add both inputs, turn on GPU and Internet, then
+Run All. Unzip `crops.zip` and `models_outputs.zip` into the repo root to get `data/crops/`, `models/` and `outputs/`.
 
 ### Steps 5–6: CPU log and checks (laptop)
 
