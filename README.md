@@ -22,12 +22,30 @@ damage classifiers of increasing size, and logs every crop's predictions, CPU la
 | 1 | `scripts/01_index_buildings.py` | laptop (needs labels only) | `outputs/building_index.csv` plus per-event class counts |
 | 2 | `scripts/02_build_subset.py` | laptop | `outputs/crop_manifest.csv`, `split_manifest.csv`, `class_map.json`, `class_map_4.json` |
 | 3 | `scripts/03_extract_crops.py` | **Kaggle** (needs the 8 GB of images) | `data/crops/<image_id>_{pre,post}.png` |
-| 4 | `scripts/04_train_model.py` | **Kaggle GPU** | `models/*.pth`, `outputs/train_history_*.csv` |
+| 4 | `scripts/04_train_model.py` | **Kaggle** (GPU if available; this run used 4 CPU cores) | `models/*.pth`, `outputs/train_history_*.csv` |
 | 5 | `scripts/05_run_inference_log.py` | **laptop CPU**, deliberately | `outputs/model_log.csv`, `outputs/model_memory.json` |
 | 6 | `scripts/06_verify_log.py` | laptop | acceptance checks plus test-set metrics |
 
 Steps 3 and 4 run on Kaggle because downloading the 10 GB archive to the laptop ran at about 300 KB/s
-(around 10 hours). The images never leave Kaggle; only the crops (about 1 GB) and the weights are downloaded.
+(around 10 hours). The images never leave Kaggle; only the crops (540 MB zipped) and the weights are downloaded.
+
+Kaggle attached no GPU to this account's jobs, even with `enable_gpu` set and the phone verified; a one-line
+probe job confirmed `torch.cuda.is_available() == False`. The models were therefore trained on Kaggle's free
+4-core CPU sessions. That is slower (about 2 / 11 / 12 min per epoch for MobileNet / ResNet / EfficientNet)
+but gives the same results.
+
+## For teammates: getting the data
+
+```powershell
+git clone https://github.com/SriharshithaAnkareddy25/ResQRoute-.git
+```
+
+- **What's in the repo:** `outputs/model_log.csv`, `outputs/class_map.json`, `outputs/crop_manifest.csv`,
+  `outputs/split_manifest.csv` and `models/*.pth`.
+- **Crop images:** the private Kaggle dataset `harshithaankareddy/resqroute-crops`. Ask the owner to add you as
+  a collaborator. Either attach it to a Kaggle notebook, or download it and unzip so that the files land in
+  `data/crops/<image_id>_{pre,post}.png`. The paths in the CSVs are relative to the repo root.
+- **The fixed split:** never re-split; always join on `image_id` with `outputs/split_manifest.csv`.
 
 ### Setup (laptop)
 
@@ -66,8 +84,12 @@ kaggle kernels push -p <folder with the notebook + kernel-metadata.json>
 kaggle kernels output harshithaankareddy/resqroute-train -p kaggle_out
 ```
 
-Clicking through the Kaggle UI also works: import the notebook, add both inputs, turn on GPU and Internet, then
-Run All. Unzip `crops.zip` and `models_outputs.zip` into the repo root to get `data/crops/`, `models/` and `outputs/`.
+Clicking through the Kaggle UI also works: import the notebook, add the three inputs, then Run All.
+Unzip `models_outputs.zip` into the repo root to get `models/` and `outputs/`. With `ZIP_CROPS = True` the job
+also writes `crops.zip`, which unzips to `data/crops/`.
+
+On the laptop, `data/crops` is a directory junction to `C:/data/resqroute_crops`. This keeps 12,000 PNGs out of
+OneDrive sync; the scripts don't notice the difference.
 
 ### Steps 5–6: CPU log and checks (laptop)
 
@@ -102,10 +124,18 @@ python scripts/06_verify_log.py
   4. Letterbox to 224×224, keeping the aspect ratio with black padding.
 - **Training.**
   - Inputs and labels: post-disaster crop only, 3-class labels (`--classes 4` is supported).
-  - Model and optimiser: ImageNet weights, full fine-tune, AdamW (lr 3e-4) with a cosine schedule, and
-    inverse-frequency class weights.
+  - Model and optimiser: ImageNet weights, full fine-tune, AdamW (lr 3e-4) with a cosine schedule,
+    inverse-frequency class weights and **label smoothing 0.1**.
   - Augmentation: flips, 90° rotations and light colour jitter.
-  - Stopping: up to 25 epochs, early stopping on val loss (patience 5); the best epoch is saved.
+  - Stopping: up to 20 epochs. The checkpoint with the best **val macro-F1** is kept, and training stops after
+    6 epochs without improvement.
+  - Why this recipe:
+    - A first run selected checkpoints by val loss (patience 5). That stopped the larger models early;
+      EfficientNet-B0 was kept at epoch 3 (val acc 0.762) although epoch 7 reached 0.782.
+    - Macro-F1 is the metric the project reports.
+    - Label smoothing reduces over-confident softmax outputs. That matters because the routing controller
+      reads the confidence, entropy and top-2 margin from these probabilities.
+    - Both settings are flags (`--select loss`, `--label-smoothing 0`).
 - **Timing.** CPU only with `torch.set_num_threads(1)`.
   - Each model gets 10 warm-up passes first.
   - Only the forward pass is timed (batch of 1), 3 times per crop, and the median is recorded.

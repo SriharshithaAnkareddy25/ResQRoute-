@@ -1,6 +1,7 @@
 """Step 4: fine-tune one ImageNet-pretrained classifier on the post-disaster crops.
 
-Train split for fitting, val split for early stopping (on val loss); test is never touched here.
+Train split for fitting, val split for checkpoint selection / early stopping (val macro-F1 by default);
+test is never touched here.
 Run on a Kaggle GPU (see README); works on CPU too, just slowly.
 
   python scripts/04_train_model.py --arch mobilenet_v3_small
@@ -77,8 +78,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--arch", required=True, choices=list(MODELS))
     ap.add_argument("--classes", type=int, default=3, choices=[3, 4])
-    ap.add_argument("--epochs", type=int, default=25)
-    ap.add_argument("--patience", type=int, default=5, help="early stopping on val loss")
+    ap.add_argument("--epochs", type=int, default=20)
+    ap.add_argument("--patience", type=int, default=6, help="early stopping on the --select metric")
+    ap.add_argument("--select", choices=["f1", "loss"], default="f1",
+                    help="checkpoint/early-stopping metric: val macro-F1 (default) or val loss")
+    ap.add_argument("--label-smoothing", type=float, default=0.1,
+                    help="softens over-confident probabilities, which the routing controller reads")
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--workers", type=int, default=2)
@@ -101,7 +106,7 @@ def main():
     print(f"{args.arch} on {device} | train {len(tr)} val {len(va)} | class counts {dict(zip(classes, counts))}")
 
     model = build_model(args.arch, len(classes)).to(device)
-    loss_fn = nn.CrossEntropyLoss(weight=weights)
+    loss_fn = nn.CrossEntropyLoss(weight=weights, label_smoothing=args.label_smoothing)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)
     scaler = torch.amp.GradScaler(enabled=device.type == "cuda")
@@ -111,7 +116,7 @@ def main():
         weights_path = weights_path.replace(".pth", "_4class.pth")
     (REPO / "models").mkdir(exist_ok=True)
 
-    best, bad, hist = float("inf"), 0, []
+    best, bad, hist = float("-inf"), 0, []
     for ep in range(1, args.epochs + 1):
         t = time.time()
         tr_loss, tr_acc, tr_f1 = run_epoch(model, dl_tr, loss_fn, device, opt, scaler)
@@ -120,8 +125,9 @@ def main():
         hist.append(dict(epoch=ep, train_loss=tr_loss, train_acc=tr_acc, train_f1=tr_f1,
                          val_loss=va_loss, val_acc=va_acc, val_f1=va_f1))
         flag = ""
-        if va_loss < best:
-            best, bad, flag = va_loss, 0, "  *saved*"
+        score = va_f1 if args.select == "f1" else -va_loss
+        if score > best:
+            best, bad, flag = score, 0, "  *saved*"
             torch.save(model.state_dict(), REPO / weights_path)
         else:
             bad += 1
@@ -133,7 +139,7 @@ def main():
 
     suffix = "" if args.classes == 3 else "_4class"
     pd.DataFrame(hist).to_csv(OUTPUTS / f"train_history_{args.arch}{suffix}.csv", index=False)
-    best_row = min(hist, key=lambda h: h["val_loss"])
+    best_row = max(hist, key=lambda h: h["val_f1"] if args.select == "f1" else -h["val_loss"])
     (OUTPUTS / f"train_summary_{args.arch}{suffix}.json").write_text(json.dumps(
         {"arch": args.arch, "classes": classes, "device": str(device), **vars(args), "best": best_row}, indent=2))
     print(f"best epoch {best_row['epoch']}: val acc {best_row['val_acc']:.3f} macroF1 {best_row['val_f1']:.3f} -> {weights_path}")
