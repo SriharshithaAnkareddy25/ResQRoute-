@@ -1,0 +1,4 @@
+budget_ms,accept_small,defer,escalate_effnet,escalate_resnet18,human_review,accuracy,avg_time_ms
+60,82.8,12.9,0.5,0.0,3.8,0.623,23.0
+180,82.1,8.6,5.5,0.0,3.7,0.633,28.2
+400,83.6,5.7,4.9,1.2,4.6,0.652,30.6

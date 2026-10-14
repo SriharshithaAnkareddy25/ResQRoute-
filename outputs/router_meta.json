@@ -1,0 +1,11 @@
+{
+  "thresholds": {
+    "fixed": 0.74,
+    "resource": 0.52
+  },
+  "deferred_queue": {
+    "n": 619,
+    "severe_top_half": 0.4368932038834951,
+    "severe_bottom_half": 0.34516129032258064
+  }
+}
