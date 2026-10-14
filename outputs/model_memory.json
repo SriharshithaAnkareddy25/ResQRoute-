@@ -1,0 +1,27 @@
+{
+  "method": "peak RSS increase for weight load + one forward pass, fresh subprocess, 1 thread, median of 3",
+  "mobilenet_v3_small": {
+    "mem_mb": 98.54,
+    "runs_mb": [
+      98.61,
+      98.54,
+      98.23
+    ]
+  },
+  "resnet18": {
+    "mem_mb": 172.09,
+    "runs_mb": [
+      172.75,
+      172.09,
+      171.75
+    ]
+  },
+  "efficientnet_b0": {
+    "mem_mb": 121.53,
+    "runs_mb": [
+      121.35,
+      122.02,
+      121.53
+    ]
+  }
+}

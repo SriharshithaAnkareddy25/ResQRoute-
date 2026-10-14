@@ -1,0 +1,21 @@
+{
+  "arch": "resnet18",
+  "classes": 3,
+  "device": "cpu",
+  "epochs": 20,
+  "patience": 6,
+  "select": "f1",
+  "label_smoothing": 0.1,
+  "lr": 0.0003,
+  "batch_size": 64,
+  "workers": 2,
+  "best": {
+    "epoch": 5,
+    "train_loss": 0.6885043845247867,
+    "train_acc": 0.7532649253731343,
+    "train_f1": 0.7535993153538262,
+    "val_loss": 0.6710261114915773,
+    "val_acc": 0.7938751472320377,
+    "val_f1": 0.795029508210657
+  }
+}

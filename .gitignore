@@ -13,3 +13,4 @@ data/crops/*
 !data/crops/.gitkeep
 # generated upload bundle for Kaggle
 kaggle/resqroute-code.zip
+outputs/inference_run.log

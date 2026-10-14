@@ -196,8 +196,66 @@ The chosen events are **hurricane-michael, hurricane-matthew and santa-rosa-wild
 
 **Caveat:** class mix differs a lot by event, so a model could partly learn "which scene is this" as a
 shortcut. Report per-event metrics as well as the overall numbers.
-- **Model cost ordering:** on this laptop's CPU, ResNet-18 is *slower and uses more memory* than
-  EfficientNet-B0, even though ResNet-18 is meant to be the "medium" stage. A smoke test measured about 100 ms
-  vs 51 ms per image and 173 MB vs 122 MB. The routing controller should use the measured `*_time_ms`/`*_mem_mb`
-  costs, not assume that stage order equals cost order. Alternatively the team can swap the advanced stage
-  (for example to EfficientNet-B2 or ResNet-50).
+## Results (final models, `outputs/model_log.csv`)
+
+### Test split: 852 crops, never used for training or checkpoint selection
+
+| model (cascade stage) | accuracy | macro-F1 | severe recall | severe → "no-damage" | CPU median ms | memory MB | val macro-F1 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| MobileNetV3-Small (small) | 0.604 | 0.597 | 0.398 | 6.3% | 22.9 | 98.5 | 0.776 |
+| ResNet-18 (medium) | 0.622 | 0.610 | 0.377 | 9.5% | 219.8 | 172.1 | 0.795 |
+| EfficientNet-B0 (advanced) | 0.617 | 0.610 | 0.419 | 4.2% | 105.3 | 121.5 | 0.778 |
+
+- **Timing:** batch of 1, 1 thread, on this laptop's CPU. The 10th–90th percentile range is 20–29 ms for
+  MobileNet, 199–255 ms for ResNet-18 and 96–125 ms for EfficientNet.
+- **Memory:** see the "Memory" design decision above for how it was measured.
+- **Severe → "no-damage"** is the dangerous error the project targets: a truly severe building that the model
+  calls undamaged.
+
+Test confusion matrices (rows = true class, columns = predicted; order no / minor / severe):
+
+| model | true no-damage | true minor | true severe |
+|---|---|---|---|
+| MobileNetV3-Small | 238 / 39 / 7 | 67 / 164 / 53 | 18 / 153 / 113 |
+| ResNet-18 | 246 / 35 / 3 | 76 / 177 / 31 | 27 / 150 / 107 |
+| EfficientNet-B0 | 246 / 29 / 9 | 64 / 161 / 59 | 12 / 153 / 119 |
+
+**The main confusion is severe vs minor.** About 150 of the 284 severe test buildings are called "minor" by every
+model. No-damage is recognised well.
+
+### Things the team must know before using the log
+
+1. **Train the router on `split == "val"` rows and evaluate on `split == "test"`. Do not train it on `train` rows.**
+   The base models were fitted on the train rows, so their predictions there are over-optimistic. For example,
+   EfficientNet scores 0.948 on train but 0.617 on test. A router trained on those rows would learn that the
+   models are almost always right. That leaves 849 val rows for training the router, which is small; possible
+   ways around this are listed under "Possible improvements".
+2. **Test is harder than val, because of its event mix rather than chance or leakage.**
+   - The split is stratified by class and grouped by tile, but not by event.
+   - About 50% of the severe test buildings (142/284) are from Hurricane Matthew, whose imagery is the
+     blurriest. All three models score only 0.36–0.39 macro-F1 there.
+   - Test has only 28 Santa Rosa "destroyed" buildings, against 114 in val; those are the easiest.
+   - On Hurricane Michael alone, val and test agree (about 0.63 vs 0.60). Report per-event numbers as well as
+     the overall ones.
+3. **Bigger is not better here.**
+   - ResNet-18 ("medium") is the slowest model and uses the most memory: 9.6× the latency of MobileNet, and
+     2× EfficientNet's.
+   - EfficientNet-B0 is cheaper than ResNet-18 and ties it on macro-F1, with the best severe recall and the
+     fewest dangerous misses.
+   - The router should use the measured `*_time_ms`/`*_mem_mb` columns as costs. It must not assume that stage
+     order equals cost order.
+4. **There is real headroom for routing.**
+   - On test, at least one of the three models is right for 75.7% of crops, against 62.2% for the best single
+     model.
+   - All three agree on 66.7% of crops, and are right on 69.4% of those.
+   - Disagreement and uncertainty therefore carry signal, which is the premise of ResQRoute.
+
+### Possible improvements (not done; ranked by expected gain per unit of compute)
+
+- **Feed the pre-disaster crop as well**, as a 6-channel input or as pre and post features. The best xView2
+  solutions all compare before and after, and minor vs severe is where the models fail now. The crops already
+  exist.
+- **Generate out-of-fold predictions** (k-fold over train+val) so the router has about 5,000 honest training rows
+  instead of 849.
+- **Balance the split by event as well** (stratify on event × class) so val and test are directly comparable.
+  This changes `split_manifest.csv`, so it must happen before anyone else uses the split.

@@ -1,0 +1,21 @@
+{
+  "arch": "efficientnet_b0",
+  "classes": 3,
+  "device": "cpu",
+  "epochs": 20,
+  "patience": 6,
+  "select": "f1",
+  "label_smoothing": 0.1,
+  "lr": 0.0003,
+  "batch_size": 64,
+  "workers": 2,
+  "best": {
+    "epoch": 9,
+    "train_loss": 0.4948246247732817,
+    "train_acc": 0.8859608208955224,
+    "train_f1": 0.8861614271542324,
+    "val_loss": 0.6988168789865833,
+    "val_acc": 0.7785630153121319,
+    "val_f1": 0.7778343339877889
+  }
+}

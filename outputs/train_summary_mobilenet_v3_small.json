@@ -1,0 +1,21 @@
+{
+  "arch": "mobilenet_v3_small",
+  "classes": 3,
+  "device": "cpu",
+  "epochs": 20,
+  "patience": 6,
+  "select": "f1",
+  "label_smoothing": 0.1,
+  "lr": 0.0003,
+  "batch_size": 64,
+  "workers": 2,
+  "best": {
+    "epoch": 8,
+    "train_loss": 0.6166855141298094,
+    "train_acc": 0.8120335820895522,
+    "train_f1": 0.8123182937910932,
+    "val_loss": 0.6686853477895892,
+    "val_acc": 0.7762073027090695,
+    "val_f1": 0.7763722678815946
+  }
+}
