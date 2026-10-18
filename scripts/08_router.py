@@ -108,28 +108,51 @@ def priority(rep):
     return U * R * D * A
 
 
+
 def outcome(rep, actions, defer_model="efficientnet"):
-    """Final prediction, compute cost and resource violation for each (crop, scenario, action)."""
+    """Return predictions, immediate latency, peak memory, and resource violations."""
     t_small = rep[f"{SMALL}_time_ms"].to_numpy()
     pred = rep[f"{SMALL}_yhat"].to_numpy().copy()
-    time = t_small.copy()
+
+    # Immediate processing cost: MobileNet always runs first.
+    immediate_time = t_small.copy()
+    eventual_time = t_small.copy()
+
     mem = rep[f"{SMALL}_mem_mb"].to_numpy().copy()
+
     for a, m in zip([1, 2], BIG):
         sel = actions == a
         pred[sel] = rep[f"{m}_yhat"].to_numpy()[sel]
-        time[sel] += rep[f"{m}_time_ms"].to_numpy()[sel]
+        immediate_time[sel] += rep[f"{m}_time_ms"].to_numpy()[sel]
+        eventual_time[sel] += rep[f"{m}_time_ms"].to_numpy()[sel]
         mem[sel] = np.maximum(mem[sel], rep[f"{m}_mem_mb"].to_numpy()[sel])
-    d = actions == 3  # processed later, when resources return
+
+    # Deferred items are processed later by the selected model.
+    d = actions == 3
     pred[d] = rep[f"{defer_model}_yhat"].to_numpy()[d]
-    h = actions == 4  # a human gives the correct label
+    eventual_time[d] += rep[f"{defer_model}_time_ms"].to_numpy()[d]
+    mem[d] = np.maximum(mem[d], rep[f"{defer_model}_mem_mb"].to_numpy()[d])
+
+    # Human review is assumed correct in this simulation.
+    h = actions == 4
     pred[h] = rep.y.to_numpy()[h]
-    eff_budget = np.where(rep.battery < 0.2, rep.budget_ms * 0.5, rep.budget_ms)
-    violated = ((time > eff_budget) | (mem > rep.mem_free_mb)) & ~d & ~h
-    return pred, time, mem, violated
+
+    eff_budget = np.where(
+        rep.battery < 0.2,
+        rep.budget_ms * 0.5,
+        rep.budget_ms
+    )
+
+    # Only immediate automated actions are checked against the immediate budget.
+    violated = (
+        (immediate_time > eff_budget) | (mem > rep.mem_free_mb)
+    ) & ~d & ~h
+
+    return pred, immediate_time, eventual_time, mem, violated
 
 
 def metrics(rep, actions, name):
-    pred, time, mem, viol = outcome(rep, actions)
+    pred, time, eventual_time, mem, viol = outcome(rep, actions)
     y = rep.y.to_numpy()
     auto = ~np.isin(actions, [4])
     sev = y == SEVERE
@@ -141,6 +164,7 @@ def metrics(rep, actions, name):
         "dangerous_FN_%": 100 * (pred[sev] == 0).mean(),   # truly severe -> "no-damage"
         "auto_accuracy": (pred[auto] == y[auto]).mean(),
         "avg_time_ms": time.mean(),
+        "avg_eventual_time_ms": eventual_time.mean(),
         "avg_peak_mem_mb": mem.mean(),
         "violations_%": 100 * viol.mean(),
         **{f"%{a}": 100 * (actions == i).mean() for i, a in enumerate(ACTIONS)},
@@ -207,7 +231,7 @@ def main():
 
     # adaptivity: how the controller's behaviour changes with the latency budget
     test["action"] = [ACTIONS[a] for a in act]
-    pred, time, _, _ = outcome(test, act)
+    pred, time, eventual_time, _, _ = outcome(test, act)
     test["correct"] = pred == test.y
     test["time"] = time
     by_budget = pd.crosstab(test.budget_ms, test.action, normalize="index").mul(100).round(1)

@@ -4,8 +4,8 @@
     "resource": 0.52
   },
   "deferred_queue": {
-    "n": 619,
-    "severe_top_half": 0.4368932038834951,
-    "severe_bottom_half": 0.34516129032258064
+    "n": 632,
+    "severe_top_half": 0.4525316455696203,
+    "severe_bottom_half": 0.25316455696202533
   }
 }
