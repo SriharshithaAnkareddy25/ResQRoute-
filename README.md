@@ -259,3 +259,23 @@ model. No-damage is recognised well.
   instead of 849.
 - **Balance the split by event as well** (stratify on event × class) so val and test are directly comparable.
   This changes `split_manifest.csv`, so it must happen before anyone else uses the split.
+
+## Part C: simulator, pipeline, evaluation, demo
+
+| File | What it does |
+|---|---|
+| `scripts/resqroute_sim.py` | Resource-condition simulator: named presets (normal, tight_latency, low_memory, low_battery, degraded_network, disaster_surge, mixed) over budget, free memory, network, battery, queue depth |
+| `scripts/pipeline.py` | Integrates the model log, Person B's features/router and the simulator; `ResQRoutePipeline.route()` returns the cascade trace, decision and reasons. Caches the controller in `outputs/controller.joblib` |
+| `scripts/10_evaluate.py` | Six-system harness (small only, advanced only, fixed cascade, resource-aware no risk, controller, controller + priority queue); bootstrap CIs, per-scenario results, queue-policy sweep -> `outputs/eval_*.csv` |
+| `scripts/11_eval_figures.py` | `outputs/figures/eval_*.png` |
+| `app/demo.py` | Streamlit demo: pick a test crop and a device state, watch the cascade and the explained decision |
+
+```powershell
+python scripts/10_evaluate.py
+python scripts/11_eval_figures.py
+streamlit run app/demo.py
+```
+
+Evaluation assumptions: human review is assumed correct (its load is reported); a deferred case is resolved only if
+the priority queue reaches it (spare capacity 0.05 items per arrival, queue length 100), by running both bigger
+models and keeping the more confident answer; otherwise the small model's answer stands.

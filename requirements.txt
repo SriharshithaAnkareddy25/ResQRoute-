@@ -12,3 +12,5 @@ psutil>=6.0
 shapely>=2.0        # parse WKT building polygons in xBD label JSONs
 matplotlib>=3.9     # class-balance / training-curve plots
 kagglehub>=0.3     # fetch xBD label files from the Kaggle mirror (scripts/00_download_labels.py)
+streamlit>=1.40   # demo (app/demo.py)
+joblib>=1.4

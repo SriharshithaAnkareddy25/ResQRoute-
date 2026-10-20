@@ -1,0 +1,20 @@
+{
+  "k_scenarios": 8,
+  "n_decisions": 6816,
+  "thresholds": {
+    "fixed": 0.74,
+    "resource": 0.52
+  },
+  "queue": {
+    "rate": 0.05,
+    "max_len": 100
+  },
+  "headline": {
+    "dangerous_FN_small": 6.338028169014084,
+    "dangerous_FN_fixed": 7.394366197183098,
+    "dangerous_FN_controller": 4.88556338028169,
+    "dangerous_FN_controller_queue": 4.88556338028169,
+    "latency_controller_queue_ms": 27.273407717136152,
+    "latency_advanced_ms": 235.20516784037557
+  }
+}
